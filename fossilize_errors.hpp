@@ -25,6 +25,8 @@
 #include <string>
 #include <utility>
 #include <stdint.h>
+#include <atomic>
+#include <string.h>
 #include "fossilize_inttypes.h"
 
 #if defined(_MSC_VER) && (_MSC_VER <= 1800)
@@ -52,6 +54,19 @@ namespace Internal
 bool log_thread_callback(LogLevel level, const char *fmt, ...);
 LogCallback get_thread_log_callback();
 void *get_thread_log_userdata();
+
+static inline const char *extract_basepath(const char *path)
+{
+	const char *base = strrchr(path, '\\');
+	if (base)
+		return base + 1;
+
+	base = strrchr(path, '/');
+	if (base)
+		return base + 1;
+
+	return "";
+}
 }
 
 #ifndef LOGE
@@ -62,18 +77,48 @@ void *get_thread_log_userdata();
 #error "LOGW must be defined before including fossilize_errors.hpp."
 #endif
 
+#ifndef FOSSILIZE_SPAM_LIMIT_WARN
+#define FOSSILIZE_SPAM_LIMIT_WARN 3
+#endif
+
+#ifndef FOSSILIZE_SPAM_LIMIT_ERR
+#define FOSSILIZE_SPAM_LIMIT_ERR 3
+#endif
+
 #define LOGE_LEVEL(...) do { \
 	if (get_thread_log_level() <= LOG_ERROR) { \
-		if (!Internal::log_thread_callback(LOG_ERROR, __VA_ARGS__)) { \
-			LOGE(__VA_ARGS__); \
+		static std::atomic<uint32_t> log_spam_counter; \
+		uint32_t spam_count = log_spam_counter.load(std::memory_order_relaxed); \
+		if (spam_count <= FOSSILIZE_SPAM_LIMIT_ERR) \
+			spam_count = log_spam_counter.fetch_add(1, std::memory_order_relaxed); \
+		if (spam_count < FOSSILIZE_SPAM_LIMIT_ERR) { \
+			if (!Internal::log_thread_callback(LOG_ERROR, __VA_ARGS__)) { \
+				LOGE(__VA_ARGS__); \
+			} \
+		} else if (spam_count == FOSSILIZE_SPAM_LIMIT_ERR) { \
+			const char *basepath_name = Internal::extract_basepath(__FILE__); \
+			if (!Internal::log_thread_callback(LOG_ERROR, " ... error spam detected at %s:%d, silencing.\n", basepath_name, __LINE__)) { \
+				LOGW(" ... error spam detected at %s:%d, silencing.\n", basepath_name, __LINE__); \
+			} \
 		} \
 	} \
 } while(0)
 
 #define LOGW_LEVEL(...) do { \
 	if (get_thread_log_level() <= LOG_WARNING) { \
-		if (!Internal::log_thread_callback(LOG_WARNING, __VA_ARGS__)) { \
-			LOGW(__VA_ARGS__); \
+		static std::atomic<uint32_t> log_spam_counter; \
+		uint32_t spam_count = log_spam_counter.load(std::memory_order_relaxed); \
+		if (spam_count <= FOSSILIZE_SPAM_LIMIT_WARN) \
+			spam_count = log_spam_counter.fetch_add(1, std::memory_order_relaxed); \
+		if (spam_count < FOSSILIZE_SPAM_LIMIT_WARN) { \
+			if (!Internal::log_thread_callback(LOG_WARNING, __VA_ARGS__)) { \
+				LOGW(__VA_ARGS__); \
+			} \
+		} else if (spam_count == FOSSILIZE_SPAM_LIMIT_WARN) { \
+			const char *basepath_name = Internal::extract_basepath(__FILE__); \
+			if (!Internal::log_thread_callback(LOG_WARNING, " ... warning spam detected at %s:%d, silencing.\n", basepath_name, __LINE__)) { \
+				LOGW(" ... warning spam detected at %s:%d, silencing.\n", basepath_name, __LINE__); \
+			} \
 		} \
 	} \
 } while(0)

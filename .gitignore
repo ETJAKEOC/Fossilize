@@ -7,3 +7,7 @@
 *.iml
 out
 CMakeUserPresets.json
+/build
+/cli/SPIRV-Cross
+/cli/SPIRV-Headers
+/cli/SPIRV-Tools

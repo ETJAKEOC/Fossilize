@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.18)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_STANDARD 99)
 project(Fossilize
@@ -9,42 +9,108 @@ project(Fossilize
 option(FOSSILIZE_MSVC_ANALYZE "Enable /analyze" OFF)
 option(FOSSILIZE_ENABLE_EXCEPTIONS "Compile Fossilize with exception support." OFF)
 
-if (CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
-    if (NOT FOSSILIZE_ENABLE_EXCEPTIONS)
+# Default to Release builds.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+endif()
+
+include(CheckIPOSupported)
+check_ipo_supported(RESULT IPO_SUPPORTED)
+
+if(IPO_SUPPORTED)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
+
+# Hide all symbols unless explicitly exported.
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
+
+option(FOSSILIZE_MSVC_ANALYZE "Enable /analyze" OFF)
+option(FOSSILIZE_ENABLE_EXCEPTIONS "Compile Fossilize with exception support." OFF)
+option(FOSSILIZE_NATIVE "Enable native CPU optimizations." ON)
+
+set(FOSSILIZE_LINK_FLAGS)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
+
+    if(NOT FOSSILIZE_ENABLE_EXCEPTIONS)
         set(FOSSILIZE_EXCEPTION_FLAGS "-fno-exceptions")
     else()
         set(FOSSILIZE_EXCEPTION_FLAGS "")
     endif()
-    set(FOSSILIZE_CXX_FLAGS -Wall -Wextra -Wunused-result -Wno-missing-field-initializers -Wno-empty-body -Wshadow ${FOSSILIZE_EXCEPTION_FLAGS})
-elseif (MSVC)
-    if (FOSSILIZE_MSVC_ANALYZE)
+
+    set(FOSSILIZE_CXX_FLAGS
+        -Wall
+        -Wextra
+        -Wunused-result
+        -Wno-missing-field-initializers
+        -Wno-empty-body
+        -Wshadow
+        ${FOSSILIZE_EXCEPTION_FLAGS}
+    )
+
+    add_compile_options(
+        -ffunction-sections
+        -fdata-sections
+        -fomit-frame-pointer
+        -fno-semantic-interposition
+        -fno-math-errno
+    )
+
+    add_link_options(
+        -Wl,--gc-sections
+    )
+
+    if(FOSSILIZE_NATIVE)
+        add_compile_options(
+		-march=native
+		-mtune=native
+	)
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_link_options(-fuse-ld=lld)
+    endif()
+
+elseif(MSVC)
+
+    if(FOSSILIZE_MSVC_ANALYZE)
         set(FOSSILIZE_ANALYZE_FLAGS "/analyze")
     else()
         set(FOSSILIZE_ANALYZE_FLAGS "")
     endif()
-    # Disabling exceptions in MSVC without a ton of scary warnings is quite finicky.
-    # Don't bother. We can verify no exceptions are present with -fno-exceptions on GCC/Clang.
-    set(FOSSILIZE_CXX_FLAGS ${FOSSILIZE_ANALYZE_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS /wd4267 /wd4244 /wd4309 /wd4005 /MP /DNOMINMAX)
+
+    set(FOSSILIZE_CXX_FLAGS
+        ${FOSSILIZE_ANALYZE_FLAGS}
+        /D_CRT_SECURE_NO_WARNINGS
+        /D_SCL_SECURE_NO_WARNINGS
+        /wd4267
+        /wd4244
+        /wd4309
+        /wd4005
+        /MP
+        /DNOMINMAX
+    )
+
 endif()
 
 option(FOSSILIZE_SANITIZE_ADDRESS "Sanitize address" OFF)
-set(FOSSILIZE_LINK_FLAGS)
-if (FOSSILIZE_SANITIZE_ADDRESS)
+if(FOSSILIZE_SANITIZE_ADDRESS)
     set(FOSSILIZE_CXX_FLAGS ${FOSSILIZE_CXX_FLAGS} -fsanitize=address)
-    set(FOSSILIZE_LINK_FLAGS "${FOSSILIZE_LINK_FLAGS} -fsanitize=address")
+    string(APPEND FOSSILIZE_LINK_FLAGS " -fsanitize=address")
 endif()
 
 option(FOSSILIZE_SANITIZE_THREADS "Sanitize threads" OFF)
-if (FOSSILIZE_SANITIZE_THREADS)
+if(FOSSILIZE_SANITIZE_THREADS)
     set(FOSSILIZE_CXX_FLAGS ${FOSSILIZE_CXX_FLAGS} -fsanitize=thread)
-    set(FOSSILIZE_LINK_FLAGS "${FOSSILIZE_LINK_FLAGS} -fsanitize=thread")
+    string(APPEND FOSSILIZE_LINK_FLAGS " -fsanitize=thread")
 endif()
 
-if (CMAKE_COMPILER_IS_GNUCXX AND WIN32)
-    # MinGW build.
-    set(CMAKE_EXE_LINKER_FLAGS "${FOSSILIZE_LINK_FLAGS} -static -static-libstdc++ -static-libgcc -fstack-protector")
+if(CMAKE_COMPILER_IS_GNUCXX AND WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS
+        "${FOSSILIZE_LINK_FLAGS} -static -static-libstdc++ -static-libgcc -fstack-protector"
+    )
 endif()
 
 include(GNUInstallDirs)
@@ -52,11 +118,8 @@ include(GNUInstallDirs)
 add_library(miniz STATIC miniz/miniz.h miniz/miniz.c)
 set_target_properties(miniz PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(miniz PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/miniz)
-if (CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
-    target_compile_options(miniz PRIVATE -fvisibility=hidden)
-    if (NOT APPLE AND NOT ANDROID)
-        target_compile_definitions(miniz PRIVATE _LARGEFILE64_SOURCE)
-    endif()
+if (NOT APPLE AND NOT ANDROID)
+    target_compile_definitions(miniz PRIVATE _LARGEFILE64_SOURCE)
 endif()
 
 add_library(fossilize STATIC

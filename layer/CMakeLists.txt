@@ -7,6 +7,22 @@ add_library(VkLayer_fossilize SHARED
 	dispatch_helper.hpp
 	dispatch_helper.cpp)
 
+if (FOSSILIZE_STEAM_RUNTIME)
+    target_compile_definitions(VkLayer_fossilize PRIVATE
+        VK_LAYER_fossilize="VK_LAYER_steam_fossilize"
+        FOSSILIZE_DUMP_PATH_ENV="STEAM_FOSSILIZE_DUMP_PATH"
+        FOSSILIZE_DUMP_PATH_READ_ONLY_ENV="STEAM_FOSSILIZE_DUMP_PATH_READ_ONLY"
+        FOSSILIZE_IDENTIFIER_DUMP_PATH_ENV="STEAM_FOSSILIZE_IDENTIFIER_DUMP_PATH"
+        FOSSILIZE_LAST_USE_TAG_ENV="STEAM_FOSSILIZE_LAST_USE_TAG"
+        FOSSILIZE_PRECOMPILE_QA_ENV="STEAM_FOSSILIZE_PRECOMPILE_QA"
+        FOSSILIZE_PIPELINE_USE_DUMP_PATH_ENV="STEAM_FOSSILIZE_PIPELINE_USE_DUMP_PATH"
+    )
+
+    set_target_properties(VkLayer_fossilize PROPERTIES
+        OUTPUT_NAME VkLayer_steam_fossilize
+    )
+endif()
+
 target_include_directories(VkLayer_fossilize PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(VkLayer_fossilize PRIVATE ${FOSSILIZE_CXX_FLAGS})
 set_target_properties(VkLayer_fossilize PROPERTIES LINK_FLAGS "${FOSSILIZE_LINK_FLAGS}")

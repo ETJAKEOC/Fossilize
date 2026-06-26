@@ -8,6 +8,7 @@ project(Fossilize
 
 option(FOSSILIZE_MSVC_ANALYZE "Enable /analyze" OFF)
 option(FOSSILIZE_ENABLE_EXCEPTIONS "Compile Fossilize with exception support." OFF)
+option(FOSSILIZE_STEAM_RUNTIME "Build Steam-compatible Vulkan layer" ON)
 
 # Default to Release builds.
 if(NOT CMAKE_BUILD_TYPE)

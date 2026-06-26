@@ -1,6 +1,12 @@
-# Fossilize
+### Included compiling script:
 
-[![Build Status](https://travis-ci.org/ValveSoftware/Fossilize.svg?branch=master)](https://travis-ci.org/ValveSoftware/Fossilize)
+This repository contains a script to simplify the compiling and installation of Fossilize `COMPILE_INSTALL.sh`.
+To run, just simply clone this git repo, then, inside the directory, run;
+```bash
+./COMPILE_INSTALL.sh
+```
+
+# Fossilize
 
 Fossilize is a library and Vulkan layer for serializing various persistent Vulkan objects which typically end up
 in hashmaps. CreateInfo structs for these Vulkan objects can be recorded and replayed.

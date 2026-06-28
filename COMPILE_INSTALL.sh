@@ -126,36 +126,16 @@ run_sudo tee /usr/local/bin/steam-custom >/dev/null <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-export VK_LAYER_PATH="/usr/share/vulkan/implicit_layer.d"
-export VK_INSTANCE_LAYERS="VK_LAYER_fossilize"
+export STEAM_RUNTIME=0
+export STEAM_RUNTIME_HEAVY=0
+export DBUS_FATAL_WARNINGS=0
 
-MODE="steam"
-ARGS=()
+export LD_LIBRARY_PATH="/usr/lib/steam:/usr/lib32/steam${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
-for arg in "$@"; do
-    case "$arg" in
-        --native) MODE="native" ;;
-        *) ARGS+=("$arg") ;;
-    esac
-done
+export VK_LAYER_PATH=/usr/share/vulkan/implicit_layer.d
+export VK_INSTANCE_LAYERS=VK_LAYER_fossilize
 
-STEAM_BIN="$(command -v steam || true)"
-STEAM_NATIVE_BIN="$(command -v steam-native || true)"
-
-[[ -n "$STEAM_BIN" ]] || {
-    echo "steam not found"
-    exit 1
-}
-
-case "$MODE" in
-    native)
-        exec "${STEAM_NATIVE_BIN:-$STEAM_BIN}" "${ARGS[@]}"
-        ;;
-    *)
-        exec "$STEAM_BIN" "${ARGS[@]}"
-        ;;
-esac
-
+exec /usr/lib/steam/bin_steam.sh -compat-force-slr off "$@"
 EOF
 
 run_sudo chmod +x /usr/local/bin/steam-custom
